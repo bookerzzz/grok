@@ -46,4 +46,4 @@ func WithTabStop(chars int) Option
 
 ## Got 99 problems and this code is one?
 
-Please create an [issues](https://github.com/bookerzzz/grok/issues)
+Please create an [issue](https://github.com/bookerzzz/grok/issues)
