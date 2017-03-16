@@ -1,22 +1,27 @@
-# Dump it like you mean it!
+# Grok it like you mean it!
 
-Tired of debugging using the same old `fmt.Println` and `fmt.Printf("%+v", var)`. Enter `dump`! A new package to make your vars look pretty again.
+Tired of debugging using the same old `fmt.Println` and `fmt.Printf("%+v", var)`. Enter `grok`! A new package to help you grok your own code.
+
+## Install:
+```sh
+go get github.com/bookerzzz/grok
+```
 
 ## Usage:
 
 ```go
-import "github.com/leisurespecials/lighthouse/lib/debug/dump"
+import "github.com/bookerzzz/grok"
 
-var := "Whatever you want me to be!"
+fake := "News"
 
-dump.Value(var)
+grok.Value(fake) // or grok.V(fake)
 
 // or for customised output
 
-dump.Value(var, ...dump.Option)
+grok.Value(fake, ...dump.Option)
 ```
 
-The dump package comes with the following customisation options baked in:
+The grok package comes with the following customisation options baked in:
  
 ```go
 // WithWriter redirects output from debug functions to the given io.Writer
@@ -41,4 +46,4 @@ func WithTabStop(chars int) Option
 
 ## Got 99 problems and this code is one?
 
-Talk to `Merten van Gerven`. He wrote this package so he can figure it out, right?!
+Please create an [issues](https://github.com/bookerzzz/grok/issues)
