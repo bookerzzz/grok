@@ -18,7 +18,7 @@ grok.Value(fake) // or grok.V(fake)
 
 // or for customised output
 
-grok.Value(fake, ...dump.Option)
+grok.Value(fake, ...grok.Option)
 ```
 
 The grok package comes with the following customisation options baked in:
