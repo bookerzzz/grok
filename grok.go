@@ -84,7 +84,7 @@ func WithMaxDepth(depth int) Option {
 	}
 }
 
-// WithMaxLength sets the maximum length of string values. Default is `100`, use `0` for unlimited
+// WithMaxLength sets the maximum length of string byValue. Default is `100`, use `0` for unlimited
 func WithMaxLength(chars int) Option {
 	return func(c *Conf) {
 		c.maxLength = chars

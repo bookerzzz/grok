@@ -209,7 +209,7 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 				write(indent(colour("... max depth reached\n", colourGrey), depth))
 			} else {
 				keys := v.MapKeys()
-				sort.Sort(Values(keys))
+				sort.Sort(byValue(keys))
 				for _, k := range v.MapKeys() {
 					dump(fmt.Sprintf("%v", k), v.MapIndex(k), write, colour, indent, depth, maxDepth, maxLength)
 				}
@@ -255,4 +255,21 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 		write(colour("??? %s", colourRed), v.Kind().String())
 	}
 	write("\n")
+}
+
+type byValue []reflect.Value
+
+// Len implements sort.Interface
+func (s byValue) Len() int {
+	return len(s)
+}
+
+// Swap implements sort.Interface
+func (s byValue) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// Less implements sort.Interface
+func (s byValue) Less(i, j int) bool {
+	return fmt.Sprintf("%v", s[i]) < fmt.Sprintf("%v", s[j])
 }
