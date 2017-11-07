@@ -15,51 +15,58 @@ var (
 	colourGrey   = "\x1B[38;5;144m"
 	colourGreen  = "\x1B[38;5;34m"
 	colourGold   = "\x1B[38;5;3m"
-	defaults = Conf{
-		depth:   0,
-		out:     os.Stdout,
-		tabstop: 4,
-		colour: true,
-		maxDepth: 10,
+	defaults     = Conf{
+		depth:     0,
+		writer:    os.Stdout,
+		tabstop:   4,
+		colour:    true,
+		maxDepth:  10,
 		maxLength: 100,
 	}
 )
 
+type Writer func(string, ...interface{})
+
+type Indenter func(string, int) string
+
+type Colourizer func(str string, colour string) string
+
 type Option func(c *Conf)
 
 type Conf struct {
-	depth   int
-	out     io.Writer
-	tabstop int
-	colour bool
-	maxDepth int
+	depth     int
+	writer    io.Writer
+	tabstop   int
+	colour    bool
+	maxDepth  int
 	maxLength int
 }
 
-
-func outer(c Conf) func(string, ...interface{}) {
-	return func(format string, params ...interface{}) {
-		c.out.Write([]byte(fmt.Sprintf(format, params...)))
-	}
+func writer(w io.Writer) Writer {
+	return Writer(func(format string, params ...interface{}) {
+		w.Write([]byte(fmt.Sprintf(format, params...)))
+	})
 }
 
-func indent(c Conf) string {
-	return strings.Repeat(" ", c.depth*c.tabstop)
+func indenter(tabstop int) Indenter {
+	return Indenter(func(v string, depth int) string {
+		return strings.Repeat(" ", depth*tabstop) + v
+	})
 }
 
-func colourer(c Conf) func(str string, colour string) string {
-	return func (str string, colour string) string {
-		if c.colour {
+func colourizer(colourize bool) Colourizer {
+	return Colourizer(func(str string, colour string) string {
+		if colourize {
 			return colour + str + colourReset
 		}
 		return str
-	}
+	})
 }
 
 // WithWriter redirects output from debug functions to the given io.Writer
 func WithWriter(w io.Writer) Option {
 	return func(c *Conf) {
-		c.out = w
+		c.writer = w
 	}
 }
 

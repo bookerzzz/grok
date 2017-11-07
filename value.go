@@ -1,32 +1,28 @@
 package grok
 
 import (
-	"reflect"
+	"bytes"
 	"fmt"
+	"reflect"
 	"sort"
 	"sync"
 )
 
-type Values []reflect.Value
-
-// Len implements sort.Interface
-func (s Values) Len() int {
-	return len(s)
-}
-
-// Swap implements sort.Interface
-func (s Values) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-// Less implements sort.Interface
-func (s Values) Less(i, j int) bool {
-	return fmt.Sprintf("%v", s[i]) < fmt.Sprintf("%v", s[j])
-}
-
 var (
 	dumpMutex = sync.Mutex{}
 )
+
+type value struct {
+	Name        string
+	IsValid     bool
+	IsPointer   bool
+	IsInterface bool
+	Type        string
+	RValue      reflect.Value
+	RType       reflect.Type
+	Elem        interface{}
+	Children    []value
+}
 
 // V aliases Value
 func V(value interface{}, options ...Option) {
@@ -44,16 +40,25 @@ func Value(value interface{}, options ...Option) {
 	dumpMutex.Lock()
 	defer dumpMutex.Unlock()
 
+	// create a buffer for our output to make it concurrency safe.
+	var b bytes.Buffer
+
 	// dump it like you mean it
-	dump("value", reflect.ValueOf(value), c)
+	dump("value", reflect.ValueOf(value), writer(&b), colourizer(c.colour), indenter(c.tabstop))
+
+	// Write the contents of the buffer to the configured writer.
+	c.writer.Write(b.Bytes())
 }
 
-func dump(name string, v reflect.Value, c Conf) {
-	out := outer(c)
-	colour := colourer(c)
+func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent Indenter) {
+	val := value{
+		Name:   name,
+		RValue: v,
+	}
 
 	if !v.IsValid() {
-		out(indent(c) + "<invalid>\n")
+		val.Elem = "<invalid>"
+		write(indent("<invalid>\n", c.depth))
 		return
 	}
 	t := v.Type()
@@ -122,14 +127,14 @@ func dump(name string, v reflect.Value, c Conf) {
 	}
 
 	if len(name) > 0 {
-		out(indent(c) + "%s %s = ", colour(name, colourYellow), tn)
+		write(indent("%s %s = ", c.depth), colour(name, colourYellow), tn)
 	} else {
-		out(indent(c))
+		write(indent("", c.depth))
 	}
 
 	switch v.Kind() {
 	case reflect.Bool:
-		out(colour("%v", colourGreen), v.Bool())
+		write(colour("%v", colourGreen), v.Bool())
 	case reflect.Uintptr:
 		fallthrough
 	case reflect.Int:
@@ -159,58 +164,58 @@ func dump(name string, v reflect.Value, c Conf) {
 	case reflect.Complex64:
 		fallthrough
 	case reflect.Complex128:
-		out(colour("%v", colourGreen), v)
+		write(colour("%v", colourGreen), v)
 	case reflect.Array:
 		fallthrough
 	case reflect.Slice:
 		if v.Len() == 0 {
-			out("[]\n")
+			write("[]\n")
 			return
 		}
-		out("[\n")
+		write("[\n")
 		c.depth = c.depth + 1
 		if c.maxDepth > 0 && c.depth >= c.maxDepth {
-			out(indent(c) + colour("... max depth reached\n", colourGrey))
+			write(indent(colour("... max depth reached\n", colourGrey), c.depth))
 		} else {
 			for i := 0; i < v.Len(); i++ {
-				dump(colour(fmt.Sprintf("%d", i), colourRed), v.Index(i), c)
+				dump(colour(fmt.Sprintf("%d", i), colourRed), v.Index(i), write, colour, indent)
 			}
 		}
 		c.depth = c.depth - 1
-		out(indent(c) + "]")
+		write(indent("]", c.depth))
 	case reflect.Chan:
 		if v.IsNil() {
-			out(colour("<nil>", colourGrey))
+			write(colour("<nil>", colourGrey))
 		} else {
-			out(colour("%v", colourGreen), v)
+			write(colour("%v", colourGreen), v)
 		}
 	case reflect.Func:
 		if v.IsNil() {
-			out(colour("<nil>", colourGrey))
+			write(colour("<nil>", colourGrey))
 		} else {
-			out(colour("%v", colourGreen), v)
+			write(colour("%v", colourGreen), v)
 		}
 	case reflect.Map:
 		if !v.IsValid() {
-			out(colour("<nil>", colourGrey))
+			write(colour("<nil>", colourGrey))
 		} else {
 			if v.Len() == 0 {
-				out("[]\n")
+				write("[]\n")
 				return
 			}
-			out("[\n")
+			write("[\n")
 			c.depth = c.depth + 1
 			if c.maxDepth > 0 && c.depth >= c.maxDepth {
-				out(indent(c) + colour("... max depth reached\n", colourGrey))
+				write(indent(colour("... max depth reached\n", colourGrey), c.depth))
 			} else {
-				keys := v.MapKeys();
+				keys := v.MapKeys()
 				sort.Sort(Values(keys))
 				for _, k := range v.MapKeys() {
-					dump(fmt.Sprintf("%v", k), v.MapIndex(k), c)
+					dump(fmt.Sprintf("%v", k), v.MapIndex(k), write, colour, indent)
 				}
 			}
 			c.depth = c.depth - 1
-			out(indent(c) + "]")
+			write(indent("]", c.depth))
 		}
 	case reflect.String:
 		s := v.String()
@@ -218,36 +223,36 @@ func dump(name string, v reflect.Value, c Conf) {
 		if c.maxLength > 0 && slen > c.maxLength {
 			s = fmt.Sprintf("%s...", string([]byte(s)[0:c.maxLength]))
 		}
-		out(colour("%q ", colourGreen), s)
-		out(colour("%d", colourGrey), slen)
+		write(colour("%q ", colourGreen), s)
+		write(colour("%d", colourGrey), slen)
 	case reflect.Struct:
 		if v.NumField() == 0 {
-			out("{}\n")
+			write("{}\n")
 			return
 		}
-		out("{\n")
+		write("{\n")
 		c.depth = c.depth + 1
 		if c.maxDepth > 0 && c.depth >= c.maxDepth {
-			out(indent(c) + colour("... max depth reached\n", colourGrey))
+			write(indent(colour("... max depth reached\n", colourGrey), c.depth))
 		} else {
 			for i := 0; i < v.NumField(); i++ {
-				dump(t.Field(i).Name, v.Field(i), c)
+				dump(t.Field(i).Name, v.Field(i), write, colour, indent)
 			}
 		}
 		c.depth = c.depth - 1
-		out(indent(c) + "}")
+		write(indent("}", c.depth))
 	case reflect.UnsafePointer:
-		out(colour("%v", colourGreen), v)
+		write(colour("%v", colourGreen), v)
 	case reflect.Invalid:
-		out(colour("<nil>", colourGrey))
+		write(colour("<nil>", colourGrey))
 	case reflect.Interface:
 		if v.IsNil() {
-			out(colour("<nil>", colourGrey))
+			write(colour("<nil>", colourGrey))
 		} else {
-			out(colour("%v", colourGreen), v)
+			write(colour("%v", colourGreen), v)
 		}
 	default:
-		out(colour("??? %s", colourRed), v.Kind().String())
+		write(colour("??? %s", colourRed), v.Kind().String())
 	}
-	out("\n")
+	write("\n")
 }
