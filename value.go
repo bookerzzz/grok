@@ -44,13 +44,13 @@ func Value(value interface{}, options ...Option) {
 	var b bytes.Buffer
 
 	// dump it like you mean it
-	dump("value", reflect.ValueOf(value), writer(&b), colourizer(c.colour), indenter(c.tabstop))
+	dump("value", reflect.ValueOf(value), writer(&b), colourizer(c.colour), indenter(c.tabstop), c.depth)
 
 	// Write the contents of the buffer to the configured writer.
 	c.writer.Write(b.Bytes())
 }
 
-func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent Indenter) {
+func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent Indenter, depth int) {
 	val := value{
 		Name:   name,
 		RValue: v,
@@ -58,7 +58,7 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 
 	if !v.IsValid() {
 		val.Elem = "<invalid>"
-		write(indent("<invalid>\n", c.depth))
+		write(indent("<invalid>\n", depth))
 		return
 	}
 	t := v.Type()
@@ -127,9 +127,9 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 	}
 
 	if len(name) > 0 {
-		write(indent("%s %s = ", c.depth), colour(name, colourYellow), tn)
+		write(indent("%s %s = ", depth), colour(name, colourYellow), tn)
 	} else {
-		write(indent("", c.depth))
+		write(indent("", depth))
 	}
 
 	switch v.Kind() {
@@ -173,16 +173,16 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 			return
 		}
 		write("[\n")
-		c.depth = c.depth + 1
-		if c.maxDepth > 0 && c.depth >= c.maxDepth {
-			write(indent(colour("... max depth reached\n", colourGrey), c.depth))
+		depth = depth + 1
+		if c.maxDepth > 0 && depth >= c.maxDepth {
+			write(indent(colour("... max depth reached\n", colourGrey), depth))
 		} else {
 			for i := 0; i < v.Len(); i++ {
-				dump(colour(fmt.Sprintf("%d", i), colourRed), v.Index(i), write, colour, indent)
+				dump(colour(fmt.Sprintf("%d", i), colourRed), v.Index(i), write, colour, indent, depth)
 			}
 		}
-		c.depth = c.depth - 1
-		write(indent("]", c.depth))
+		depth = depth - 1
+		write(indent("]", depth))
 	case reflect.Chan:
 		if v.IsNil() {
 			write(colour("<nil>", colourGrey))
@@ -204,18 +204,18 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 				return
 			}
 			write("[\n")
-			c.depth = c.depth + 1
-			if c.maxDepth > 0 && c.depth >= c.maxDepth {
-				write(indent(colour("... max depth reached\n", colourGrey), c.depth))
+			depth = depth + 1
+			if c.maxDepth > 0 && depth >= c.maxDepth {
+				write(indent(colour("... max depth reached\n", colourGrey), depth))
 			} else {
 				keys := v.MapKeys()
 				sort.Sort(Values(keys))
 				for _, k := range v.MapKeys() {
-					dump(fmt.Sprintf("%v", k), v.MapIndex(k), write, colour, indent)
+					dump(fmt.Sprintf("%v", k), v.MapIndex(k), write, colour, indent, depth)
 				}
 			}
-			c.depth = c.depth - 1
-			write(indent("]", c.depth))
+			depth = depth - 1
+			write(indent("]", depth))
 		}
 	case reflect.String:
 		s := v.String()
@@ -231,16 +231,16 @@ func dump(name string, v reflect.Value, write Writer, colour Colourizer, indent 
 			return
 		}
 		write("{\n")
-		c.depth = c.depth + 1
-		if c.maxDepth > 0 && c.depth >= c.maxDepth {
-			write(indent(colour("... max depth reached\n", colourGrey), c.depth))
+		depth = depth + 1
+		if c.maxDepth > 0 && depth >= c.maxDepth {
+			write(indent(colour("... max depth reached\n", colourGrey), depth))
 		} else {
 			for i := 0; i < v.NumField(); i++ {
-				dump(t.Field(i).Name, v.Field(i), write, colour, indent)
+				dump(t.Field(i).Name, v.Field(i), write, colour, indent, depth)
 			}
 		}
-		c.depth = c.depth - 1
-		write(indent("}", c.depth))
+		depth = depth - 1
+		write(indent("}", depth))
 	case reflect.UnsafePointer:
 		write(colour("%v", colourGreen), v)
 	case reflect.Invalid:
